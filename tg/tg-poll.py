@@ -137,14 +137,25 @@ def seen(msg_id: int, tok: str) -> None:
     Для владельца смысл в том, что отсутствие 👀 однозначно означает «не дошло»,
     а не «дошло, но ещё не прочитано».
     """
-    try:
-        api("setMessageReaction", {
-            "chat_id": CHAT_ID,
-            "message_id": msg_id,
-            "reaction": json.dumps([{"type": "emoji", "emoji": "👀"}]),
-        }, tok, timeout=15)
-    except Exception as e:
-        print(f"реакцию поставить не удалось: {e}", flush=True)
+    # Повторяем при обрыве. setMessageReaction идемпотентен: повтор ставит ту же
+    # реакцию, дубля не будет. Повтор здесь не роскошь — отсутствие 👀 владелец
+    # читает как «сообщение не замечено», то есть единственный сигнал о доставке
+    # пропадает ровно на рваной связи, когда он нужнее всего.
+    last = None
+    for attempt in range(1, 4):
+        try:
+            api("setMessageReaction", {
+                "chat_id": CHAT_ID,
+                "message_id": msg_id,
+                "reaction": json.dumps([{"type": "emoji", "emoji": "👀"}]),
+            }, tok, timeout=15)
+            return
+        except Exception as e:
+            last = e
+            if attempt < 3:
+                time.sleep(attempt * 2)
+    print(f"реакцию поставить не удалось после 3 попыток: {last}", flush=True)
+    print("  владелец увидит отсутствие 👀 как «не замечено» — учти это", flush=True)
 
 
 def quoted_ref(m: dict, tid: int) -> str:
