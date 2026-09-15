@@ -46,10 +46,13 @@ fi
 # проверено прямым опытом. Поэтому по умолчанию берём самую свежую сборку,
 # какая есть на машине, включая ту, что поставляется с расширением VSCode.
 if [ -z "${CLAUDE_BIN:-}" ]; then
-  CLAUDE_BIN="$(ls -d "$HOME"/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude 2>/dev/null | sort -V | tail -1)"
-  [ -x "${CLAUDE_BIN:-}" ] || CLAUDE_BIN="$(command -v claude)"
+  # «|| true» обязателен: на машине без VSCode (сервер на Linux) ls не находит
+  # ни одного пути и выходит с 2, а при set -e и pipefail это молча обрывает
+  # весь скрипт — без строки вывода, до всех проверок. Так и было 2026-09-15.
+  CLAUDE_BIN="$(ls -d "$HOME"/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude 2>/dev/null | sort -V | tail -1)" || true
+  [ -x "${CLAUDE_BIN:-}" ] || CLAUDE_BIN="$(command -v claude)" || true
 fi
-[ -x "$CLAUDE_BIN" ] || { echo "не найден исполняемый claude (задай CLAUDE_BIN)" >&2; exit 1; }
+[ -x "${CLAUDE_BIN:-}" ] || { echo "не найден исполняемый claude (задай CLAUDE_BIN)" >&2; exit 1; }
 
 [ -f "$DIR/TASK.md" ] || { echo "нет файла $DIR/TASK.md — сначала заполни шаблон" >&2; exit 1; }
 
