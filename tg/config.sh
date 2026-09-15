@@ -21,12 +21,34 @@ TG_ROOT="$KIT_ROOT"
 TG_DIALOG_DIR="${TG_ROOT}/dialog"
 TG_STATE_DIR="$KIT_STATE_DIR"
 
+# Секрет на машине без Keychain — файл ~/.config/claude-kit/<служба> с правами 600.
+# Тот же путь читает tg-poll.py; двух источников правды здесь быть не должно.
+KIT_SECRET_DIR="${HOME}/.config/claude-kit"
+
 tg_token() {
-  security find-generic-password -a "$USER" -s "$TG_KEYCHAIN_SERVICE" -w 2>/dev/null || {
-    echo "токен Telegram не найден в Keychain (служба «${TG_KEYCHAIN_SERVICE}»)" >&2
-    echo "положить: security add-generic-password -a \"\$USER\" -s ${TG_KEYCHAIN_SERVICE} -w '<ТОКЕН>' -U" >&2
+  if [ "$(uname -s)" = "Darwin" ]; then
+    security find-generic-password -a "$USER" -s "$TG_KEYCHAIN_SERVICE" -w 2>/dev/null || {
+      echo "токен Telegram не найден в Keychain (служба «${TG_KEYCHAIN_SERVICE}»)" >&2
+      echo "положить: security add-generic-password -a \"\$USER\" -s ${TG_KEYCHAIN_SERVICE} -w '<ТОКЕН>' -U" >&2
+      return 1
+    }
+    return 0
+  fi
+
+  local f="${KIT_SECRET_DIR}/${TG_KEYCHAIN_SERVICE}"
+  if [ ! -f "$f" ]; then
+    echo "токен Telegram не найден: нет файла ${f}" >&2
+    echo "положить: mkdir -p ${KIT_SECRET_DIR} && umask 077 && printf '%s' '<ТОКЕН>' > ${f}" >&2
     return 1
-  }
+  fi
+  # Читаемый всеми секрет — это утечка, и молчать о ней нельзя.
+  local perm
+  perm="$(stat -c %a "$f" 2>/dev/null || stat -f %Lp "$f" 2>/dev/null)"
+  case "$perm" in
+    600|400) : ;;
+    *) echo "у файла ${f} слишком широкие права (${perm}); исправить: chmod 600 ${f}" >&2; return 1 ;;
+  esac
+  cat "$f"
 }
 
 tg_api() {

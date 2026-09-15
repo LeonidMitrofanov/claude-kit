@@ -16,6 +16,7 @@ shell-скрипты рядом. Дублировать их здесь нель
 Токен берётся из macOS Keychain, в аргументах и логах не появляется.
 """
 
+import http.client
 import json
 import os
 import subprocess
@@ -67,24 +68,112 @@ def configure() -> None:
     TOPICS_FILE = os.path.join(DIALOG_DIR, "TOPICS.md")
 
 
+# Где лежит секрет на машине без Keychain. Путь фиксированный и не в репозитории:
+# ~/.config/claude-kit/<служба>, права 600. Это заметно хуже Keychain — файл читается
+# любым процессом от того же пользователя, — но лучше переменной окружения, которая
+# видна в /proc и утекает в логи дочерних процессов.
+SECRET_DIR = os.path.join(os.path.expanduser("~"), ".config", "claude-kit")
+
+
 def token() -> str:
+    """Токен бота: Keychain на macOS, файл с правами 600 на прочих системах.
+
+    Кит родился на macOS и звал `security` безусловно. На Linux это не «нет токена»,
+    а `FileNotFoundError` — нет самой программы, — и приёмник падал трейсбеком
+    в первую же секунду. Обнаружилось при переносе на сервер: инструкция переноса
+    обещала переносимость, которой в живом коде не было.
+    """
+    if sys.platform == "darwin":
+        try:
+            return subprocess.run(
+                ["security", "find-generic-password", "-a", os.environ.get("USER", ""),
+                 "-s", KEYCHAIN_SERVICE, "-w"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+        except subprocess.CalledProcessError:
+            sys.exit(
+                f"токен не найден в Keychain (служба «{KEYCHAIN_SERVICE}»)\n"
+                f"положить: security add-generic-password -a \"$USER\" "
+                f"-s {KEYCHAIN_SERVICE} -w '<ТОКЕН>' -U"
+            )
+
+    path = os.path.join(SECRET_DIR, KEYCHAIN_SERVICE)
     try:
-        return subprocess.run(
-            ["security", "find-generic-password", "-a", os.environ.get("USER", ""),
-             "-s", KEYCHAIN_SERVICE, "-w"],
-            capture_output=True, text=True, check=True,
-        ).stdout.strip()
-    except subprocess.CalledProcessError:
+        with open(path, encoding="utf-8") as f:
+            value = f.read().strip()
+    except FileNotFoundError:
         sys.exit(
-            f"токен не найден в Keychain (служба «{KEYCHAIN_SERVICE}»)\n"
-            f"положить: security add-generic-password -a \"$USER\" "
-            f"-s {KEYCHAIN_SERVICE} -w '<ТОКЕН>' -U"
+            f"токен не найден: нет файла {path}\n"
+            f"положить: mkdir -p {SECRET_DIR} && umask 077 && "
+            f"printf '%s' '<ТОКЕН>' > {path}"
         )
+    if not value:
+        sys.exit(f"файл {path} пуст")
+
+    # Права проверяем и отказываемся работать с читаемым всеми секретом:
+    # молча использовать такой файл — значит скрыть утечку, а не предотвратить её.
+    mode = os.stat(path).st_mode & 0o077
+    if mode:
+        sys.exit(
+            f"у файла {path} слишком широкие права: он доступен не только владельцу.\n"
+            f"исправить: chmod 600 {path}"
+        )
+    return value
+
+
+# Соединение и чтение живут по разным часам, и это не мелочь.
+#
+# Откуда взялось. В ночь на 11.09 связь с Telegram на машине владельца стала рваной:
+# половина попыток соединиться зависала до самого таймаута. Сообщения владельца
+# пролежали одиннадцать часов, а снаружи это выглядело как живой процесс,
+# который ничего не делает.
+#
+# Замер показал существо дела. `curl` в те же секунды проходил там, где Python падал:
+# curl соединяется с адресами параллельно (Happy Eyeballs) и берёт тот, что ответил,
+# а Python перебирает их строго по очереди, и каждый мёртвый адрес стоит полного
+# таймаута. Два адреса по 20 секунд — и одна попытка съедает 40 секунд вместо секунды.
+#
+# Параллельное соединение в стандартной библиотеке не реализовано, но главное здесь
+# не оно, а цена неудачи. Соединение либо устанавливается за доли секунды, либо
+# не устанавливается вовсе: ждать его 25 секунд бессмысленно. А вот ЧИТАТЬ ответ
+# надо долго — на то он и длинный опрос.
+#
+# Поэтому таймауты разведены: на соединение несколько секунд, на чтение — сколько
+# просили. Мёртвая попытка теперь стоит секунд, а не минуты, и приёмник успевает
+# попробовать снова в ближайшее окно, когда сеть оживает.
+CONNECT_TIMEOUT = 5
+
+
+class _SplitTimeoutHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS-соединение с коротким таймаутом на connect и длинным на чтение."""
+
+    read_timeout = 70
+
+    def connect(self):
+        saved, self.timeout = self.timeout, CONNECT_TIMEOUT
+        try:
+            super().connect()
+        finally:
+            self.timeout = saved
+        self.sock.settimeout(self.read_timeout)
+
+
+class _SplitTimeoutHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(self._make, req)
+
+    def _make(self, host, timeout=None, context=None, **kw):
+        conn = _SplitTimeoutHTTPSConnection(host, context=self._context, **kw)
+        conn.read_timeout = timeout if timeout else 70
+        return conn
+
+
+_opener = urllib.request.build_opener(_SplitTimeoutHandler())
 
 
 def api(method: str, params: dict, tok: str, timeout: int = 70):
     url = f"https://api.telegram.org/bot{tok}/{method}?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+    with _opener.open(url, timeout=timeout) as r:
         return json.load(r)
 
 

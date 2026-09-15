@@ -44,7 +44,13 @@ idle_minutes() {
   local d="$1" newest now mtime
   newest="$(ls -t "$d" 2>/dev/null | head -1)"
   [ -n "$newest" ] || { echo 9999; return; }
-  mtime="$(stat -f %m "$d/$newest" 2>/dev/null)" || { echo 9999; return; }
+  # У BSD (macOS) и GNU (Linux) `stat` несовместимы. Пробуем оба: без этого
+  # на Linux отваливался бы не обход целиком, а только колонка простоя — то есть
+  # признак «жива, но ничего не делает» пропал бы молча. Самый коварный из трёх
+  # признаков остановки исчез бы, а обход продолжал бы рапортовать «чисто».
+  mtime="$(stat -f %m "$d/$newest" 2>/dev/null || stat -c %Y "$d/$newest" 2>/dev/null)" \
+    || { echo 9999; return; }
+  [ -n "$mtime" ] || { echo 9999; return; }
   now="$(date +%s)"
   echo $(( (now - mtime) / 60 ))
 }
@@ -116,6 +122,10 @@ for d in "$TASKS"/*/; do
     NeedsOwner) attention+="  • ${slug}: ЖДЁТ ВЛАДЕЛЬЦА — передать вопрос немедленно, самому не отвечать"$'\n'; continue ;;
     Blocked)    attention+="  • ${slug}: Blocked — расшить самому, сама не продолжит"$'\n'; continue ;;
     Done)       continue ;;
+    # Заведена, но ещё не запущена — законное состояние, а не молчаливая смерть.
+    # Без этой ветки обход каждый час кричит о задаче, которую сам же и отложил,
+    # и на фоне ложной тревоги перестают замечать настоящую.
+    ToDo)       if [ "$alive" -eq 0 ]; then continue; fi ;;
   esac
 
   if [ "$alive" -eq 0 ]; then
