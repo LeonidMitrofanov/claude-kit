@@ -314,6 +314,10 @@ def save_attachment(m: dict, tok: str) -> str:
     try:
         d = api("getFile", {"file_id": file_id}, tok, timeout=30)
         if not d.get("ok"):
+            # Молча возвращать пустоту нельзя: так 15.09 пропала картинка владельца.
+            # Частая причина — файл больше 20 МБ, Bot API такие не отдаёт.
+            print(f"не удалось скачать вложение #{m.get('message_id', 0)}: "
+                  f"{d.get('description')}", flush=True)
             return ""
         remote = d["result"]["file_path"]
         os.makedirs(FILES_DIR, exist_ok=True)
@@ -328,6 +332,41 @@ def save_attachment(m: dict, tok: str) -> str:
     except Exception as e:
         print(f"не удалось скачать вложение: {e}", flush=True)
         return ""
+
+
+# Служебные сообщения: у них нет ни текста, ни вложения, и это нормально.
+SERVICE_KEYS = {
+    "pinned_message", "new_chat_members", "left_chat_member", "new_chat_title",
+    "new_chat_photo", "delete_chat_photo", "forum_topic_created", "forum_topic_edited",
+    "forum_topic_closed", "forum_topic_reopened", "general_forum_topic_hidden",
+    "general_forum_topic_unhidden", "message_auto_delete_timer_changed",
+    "video_chat_started", "video_chat_ended", "video_chat_scheduled",
+    "video_chat_participants_invited", "boost_added", "chat_background_set",
+}
+
+# Вложения: скачиваемые save_attachment и те, что он пока не умеет.
+MEDIA_KEYS = {"photo", "document", "video", "voice", "animation", "video_note", "audio", "sticker"}
+
+# Ключи сообщения, по которым видно, что именно пришло. Нужны только для пометки.
+_NON_CONTENT = {"message_id", "message_thread_id", "from", "sender_chat", "chat", "date",
+                "is_topic_message", "reply_to_message", "quote", "edit_date",
+                "forward_origin", "has_protected_content", "author_signature"}
+
+
+def unsaved_note(m: dict) -> str:
+    """Пометка для сообщения без текста, чьё вложение не скачалось.
+
+    Пустая строка — служебное сообщение, записывать нечего. Иначе — строка,
+    которая попадёт в dialog/ и разбудит оркестратора. Прежде такие сообщения
+    выбрасывались молча: владелец прислал картинку, приёмник её не принял,
+    и узнать об этом можно было только по дырке в нумерации.
+    """
+    keys = set(m) - _NON_CONTENT
+    if keys & SERVICE_KEYS:
+        return ""
+    kind = ", ".join(sorted(keys)) or "неизвестно"
+    return (f"[сообщение без текста; вложение НЕ ПОЛУЧЕНО, тип: {kind} — "
+            f"попроси владельца прислать иначе]")
 
 
 def wake(text: str, topic_name: str, sender: str) -> None:
@@ -437,7 +476,13 @@ def main() -> None:
             # не несут ни текста, ни вложений — записывать и будить нечего.
             text = m.get("text") or m.get("caption") or ""
             if not text and not saved:
-                continue
+                text = unsaved_note(m)
+                if not text:
+                    continue
+            elif not saved and set(m) & MEDIA_KEYS:
+                # Подпись дошла, а файл нет — без пометки оркестратор решит,
+                # что владелец прислал только текст.
+                text += "\n\n[вложение НЕ ПОЛУЧЕНО]"
             if saved:
                 text = (text + "\n\n" if text else "") + f"Вложение: `{saved}`"
 

@@ -101,8 +101,31 @@ CASES = [
 ]
 
 
+# unsaved_note: сообщение без текста и без скачанного файла. Пустая строка —
+# «служебное, пропустить»; всё прочее должно дойти до оркестратора пометкой.
+# Проверка краснеет, если приёмник снова начнёт выбрасывать такие молча.
+BASE = {"message_id": 372, "chat": {"id": 1}, "from": {"first_name": "Леонид"}, "date": 0}
+NOTE_CASES = [
+    ("служебное: закрепление — пропустить", {**BASE, "pinned_message": {}}, False),
+    ("служебное: создание темы — пропустить", {**BASE, "forum_topic_created": {}}, False),
+    ("фото без подписи, файл не скачался — пометка", {**BASE, "photo": [{}]}, True),
+    ("документ без подписи, файл не скачался — пометка", {**BASE, "document": {}}, True),
+    ("анимация, приёмник её не скачивает — пометка", {**BASE, "animation": {}}, True),
+    ("неизвестный тип — пометка, а не тишина", {**BASE, "something_new": {}}, True),
+]
+
+
 def main() -> int:
     failed = 0
+    for name, message, want_note in NOTE_CASES:
+        got = tgpoll.unsaved_note(message)
+        if bool(got) == want_note:
+            print(f"  ок   {name}")
+        else:
+            failed += 1
+            print(f"  ПЛОХО {name}")
+            print(f"        ждали пометку: {want_note}, вышло: {got!r}")
+
     for name, message, topic, expected in CASES:
         got = quoted_ref(message, topic)
         if got == expected:
@@ -113,7 +136,7 @@ def main() -> int:
             print(f"        ждали:  {expected!r}")
             print(f"        вышло: {got!r}")
 
-    total = len(CASES)
+    total = len(CASES) + len(NOTE_CASES)
     if failed:
         print(f"\nпровалено {failed} из {total}")
         return 1
