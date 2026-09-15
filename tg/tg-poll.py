@@ -93,8 +93,12 @@ def token() -> str:
         except subprocess.CalledProcessError:
             sys.exit(
                 f"токен не найден в Keychain (служба «{KEYCHAIN_SERVICE}»)\n"
+                # -w последним и без значения: security спросит токен отдельно
+                # и спрячет ввод. В самой команде он остался бы в истории shell
+                # и был бы виден в ps — так предупреждает и справка security.
                 f"положить: security add-generic-password -a \"$USER\" "
-                f"-s {KEYCHAIN_SERVICE} -w '<ТОКЕН>' -U"
+                f"-s {KEYCHAIN_SERVICE} -U -w\n"
+                f"          (токен не вписывать — утилита спросит его отдельно)"
             )
 
     path = os.path.join(SECRET_DIR, KEYCHAIN_SERVICE)

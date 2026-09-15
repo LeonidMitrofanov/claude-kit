@@ -29,7 +29,12 @@ tg_token() {
   if [ "$(uname -s)" = "Darwin" ]; then
     security find-generic-password -a "$USER" -s "$TG_KEYCHAIN_SERVICE" -w 2>/dev/null || {
       echo "токен Telegram не найден в Keychain (служба «${TG_KEYCHAIN_SERVICE}»)" >&2
-      echo "положить: security add-generic-password -a \"\$USER\" -s ${TG_KEYCHAIN_SERVICE} -w '<ТОКЕН>' -U" >&2
+      # -w последним и БЕЗ значения: утилита спросит токен отдельным приглашением
+      # и спрячет ввод. Токен в самой команде попал бы в историю shell и был бы
+      # виден в ps любому. Так говорит и справка security: «Use of the -p or -w
+      # options is insecure. Specify -w as the last option to be prompted.»
+      echo "положить: security add-generic-password -a \"\$USER\" -s ${TG_KEYCHAIN_SERVICE} -U -w" >&2
+      echo "          (токен не вписывать — утилита спросит его отдельно, ввод будет не виден)" >&2
       return 1
     }
     return 0
