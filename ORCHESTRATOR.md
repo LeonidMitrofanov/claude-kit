@@ -7,8 +7,12 @@
 (`claude --name "$ORCHESTRATOR_NAME"`). Посмотреть:
 
 ```bash
-source claude-kit/kit-common.sh && echo "$ORCHESTRATOR_NAME"
+bash -c 'source claude-kit/kit-common.sh && echo "$ORCHESTRATOR_NAME"'
 ```
+
+Через `bash -c`, а не напрямую: на macOS оболочка по умолчанию zsh, и Bash-тул
+Claude Code гоняет команды в ней же. В zsh этот файл не работает — он обрывается
+с объяснением, но выполнить его всё равно нужно в bash.
 
 ## Первым делом при старте
 
@@ -135,8 +139,7 @@ tmux has-session -t tg-poll 2>/dev/null || \
 Подставить значения:
 
 ```bash
-source claude-kit/kit-common.sh
-claude-kit/tg/tg-send.sh "$TG_TOPIC_REPORTS" "текст отчёта"
+bash -c 'source claude-kit/kit-common.sh && claude-kit/tg/tg-send.sh "$TG_TOPIC_REPORTS" "текст отчёта"'
 ```
 
 **Правила темы — её первое сообщение**, а не закреп в конце ленты. В теме форума первое
@@ -533,8 +536,7 @@ tmux capture-pane -p -t "$(tmux list-panes -t '=<slug>' -F '#{pane_id}' | head -
 а не называй путь на диске:
 
 ```bash
-source claude-kit/kit-common.sh
-claude-kit/tg/tg-send.sh "$TG_TOPIC_REPORTS" --file <путь> --reply <id отчёта> "<подпись>"
+bash -c 'source claude-kit/kit-common.sh && claude-kit/tg/tg-send.sh "$TG_TOPIC_REPORTS" --file <путь> --reply <id отчёта> "<подпись>"'
 ```
 
 Путь к файлу полезен тебе, а владельцу нужен сам файл: инструкция, макет, выгрузка
