@@ -15,10 +15,15 @@ TOPIC="${1:-general}"; shift || true
 
 FILE=""
 REPLY_TO=""
+# --copy: текст уходит блоком кода, и Telegram показывает у него кнопку «копировать».
+# Нужно там, где сообщение целиком предназначено для вставки в другое место —
+# например промт для нейросети: владелец жмёт один раз вместо выделения пальцем.
+COPY=""
 while true; do
   case "${1:-}" in
     --file)  FILE="${2:-}"; shift 2; [ -f "$FILE" ] || { echo "файл не найден: ${FILE}" >&2; exit 1; } ;;
     --reply) REPLY_TO="${2:-}"; shift 2 ;;
+    --copy)  COPY=1; shift ;;
     *) break ;;
   esac
 done
@@ -57,6 +62,11 @@ if [ -n "$FILE" ]; then
   # Отдельный таймаут: загрузка файла много дольше отправки текста, и общие
   # 25 секунд обрывали её на середине.
   resp="$(TG_TIMEOUT=120 tg_api "$method" "${args[@]}")"
+elif [ -n "$COPY" ]; then
+  # Блок кода в HTML-разметке: экранируем то, что Telegram иначе примет за теги.
+  esc="$(printf '%s' "$TEXT" | python3 -c 'import html,sys; print(html.escape(sys.stdin.read()), end="")')"
+  args+=(--data-urlencode "text=<pre>${esc}</pre>" --data-urlencode "parse_mode=HTML")
+  resp="$(tg_api sendMessage "${args[@]}")"
 else
   args+=(--data-urlencode "text=${TEXT}")
   resp="$(tg_api sendMessage "${args[@]}")"

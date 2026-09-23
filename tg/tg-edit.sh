@@ -16,15 +16,23 @@ source "$(dirname "${BASH_SOURCE[0]}")/config.sh"
 MID="${1:-}"; shift || true
 [ -n "$MID" ] || { echo "использование: tg-edit.sh <message_id> <текст>" >&2; exit 1; }
 
+# --copy: текст становится блоком кода с кнопкой «копировать» — см. tg-send.sh.
+COPY=""
+if [ "${1:-}" = "--copy" ]; then COPY=1; shift; fi
+
 TEXT="${*:-}"
 [ -n "$TEXT" ] || TEXT="$(cat)"
 [ -n "$TEXT" ] || { echo "пустой текст" >&2; exit 1; }
 
-tg_api editMessageText \
-  -X POST \
-  --data-urlencode "chat_id=${TG_CHAT_ID}" \
-  --data-urlencode "message_id=${MID}" \
-  --data-urlencode "text=${TEXT}" \
+args=(-X POST --data-urlencode "chat_id=${TG_CHAT_ID}" --data-urlencode "message_id=${MID}")
+if [ -n "$COPY" ]; then
+  esc="$(printf '%s' "$TEXT" | python3 -c 'import html,sys; print(html.escape(sys.stdin.read()), end="")')"
+  args+=(--data-urlencode "text=<pre>${esc}</pre>" --data-urlencode "parse_mode=HTML")
+else
+  args+=(--data-urlencode "text=${TEXT}")
+fi
+
+tg_api editMessageText "${args[@]}" \
 | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
