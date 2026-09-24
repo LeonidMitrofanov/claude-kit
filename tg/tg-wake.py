@@ -63,6 +63,10 @@ def main() -> None:
     ap.add_argument("text", nargs="?", help="текст сообщения")
     ap.add_argument("--topic", default="", help="название темы, откуда пришло")
     ap.add_argument("--from", dest="sender", default="", help="кто написал")
+    # Номер сообщения — не украшение: оркестратор ставит на него реакцию, и без
+    # номера он вынужден угадывать его по стенограмме. Угадывал неверно, реакции
+    # уходили не туда или не ставились вовсе (24.09).
+    ap.add_argument("--id", dest="mid", default="", help="номер сообщения в чате")
     a = ap.parse_args()
 
     text = a.text if a.text is not None else sys.stdin.read()
@@ -77,7 +81,11 @@ def main() -> None:
         head += f" · тема «{a.topic}»"
     head += "]"
     if a.sender:
-        head += f" {a.sender}:"
+        head += f" {a.sender}"
+    if a.mid:
+        head += f" #{a.mid}"
+    if a.sender or a.mid:
+        head += ":"
 
     payload = {
         "type": "user",

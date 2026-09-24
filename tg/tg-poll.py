@@ -373,7 +373,7 @@ def unsaved_note(m: dict) -> str:
             f"попроси владельца прислать иначе]")
 
 
-def wake(text: str, topic_name: str, sender: str) -> None:
+def wake(text: str, topic_name: str, sender: str, mid: int = 0) -> None:
     """Разбудить оркестратора немедленно, не дожидаясь его обхода.
 
     Файл в dialog/ уже записан к этому моменту, поэтому неудача здесь ничего
@@ -388,7 +388,8 @@ def wake(text: str, topic_name: str, sender: str) -> None:
     """
     try:
         r = subprocess.run(
-            [os.path.join(HERE, "tg-wake.py"), text, "--topic", topic_name, "--from", sender],
+            [os.path.join(HERE, "tg-wake.py"), text, "--topic", topic_name,
+             "--from", sender, "--id", str(mid or "")],
             capture_output=True, text=True, timeout=15,
         )
     except Exception as e:
@@ -508,7 +509,7 @@ def main() -> None:
                 seen(msg_id, tok)
             append(slug, who, text, when, msg_id)
             print(f"[{when}] {who} → {topics[tid]}: {text[:60]}", flush=True)
-            wake(text, topics[tid], who)
+            wake(text, topics[tid], who, m.get("message_id", 0))
 
         write_offset(offset)
 
