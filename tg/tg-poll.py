@@ -368,6 +368,14 @@ def unsaved_note(m: dict) -> str:
     keys = set(m) - _NON_CONTENT
     if keys & SERVICE_KEYS:
         return ""
+
+    # Стикер несёт смысл своим эмодзи, и он приходит прямо в сообщении.
+    # «👍» от владельца — это ответ на заданный вопрос, а не пустота; без
+    # эмодзи такое сообщение выглядело как «пришло неизвестно что, переспроси».
+    sticker = m.get("sticker")
+    if isinstance(sticker, dict) and sticker.get("emoji"):
+        return f"[стикер {sticker['emoji']}]"
+
     kind = ", ".join(sorted(keys)) or "неизвестно"
     return (f"[сообщение без текста; вложение НЕ ПОЛУЧЕНО, тип: {kind} — "
             f"попроси владельца прислать иначе]")

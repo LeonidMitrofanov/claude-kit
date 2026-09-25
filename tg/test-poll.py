@@ -112,7 +112,13 @@ NOTE_CASES = [
     ("документ без подписи, файл не скачался — пометка", {**BASE, "document": {}}, True),
     ("анимация, приёмник её не скачивает — пометка", {**BASE, "animation": {}}, True),
     ("неизвестный тип — пометка, а не тишина", {**BASE, "something_new": {}}, True),
+    ("стикер с эмодзи — пометка", {**BASE, "sticker": {"emoji": "👍"}}, True),
+    ("стикер без эмодзи — всё равно пометка", {**BASE, "sticker": {}}, True),
 ]
+
+# Стикер — ответ владельца, а не «пришло неизвестно что»: в пометке должен быть
+# сам эмодзи, иначе смысл теряется и приходится переспрашивать.
+STICKER_TEXT = ({**BASE, "sticker": {"emoji": "👍"}}, "[стикер 👍]")
 
 
 def main() -> int:
@@ -125,6 +131,16 @@ def main() -> int:
             failed += 1
             print(f"  ПЛОХО {name}")
             print(f"        ждали пометку: {want_note}, вышло: {got!r}")
+
+    msg, want = STICKER_TEXT
+    got = tgpoll.unsaved_note(msg)
+    if got == want:
+        print("  ок   стикер: эмодзи попал в пометку")
+    else:
+        failed += 1
+        print("  ПЛОХО стикер: эмодзи попал в пометку")
+        print(f"        ждали:  {want!r}")
+        print(f"        вышло: {got!r}")
 
     for name, message, topic, expected in CASES:
         got = quoted_ref(message, topic)
