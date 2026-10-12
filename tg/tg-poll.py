@@ -293,6 +293,29 @@ def quoted_ref(m: dict, tid: int) -> str:
     return f"[в ответ на #{rid} от {author}: «{body}»]"
 
 
+def rasshifrovat(путь: str) -> str:
+    """Перевести голосовое в текст своим распознаванием.
+
+    whisper.cpp стоит на сервере (tools/rasshifrovka.sh), работает без сети
+    и без ключей. Не вышло — возвращаем пустую строку, и в переписку идёт одна
+    ссылка на файл, как было раньше: потерять сообщение из-за распознавания
+    хуже, чем остаться без расшифровки.
+    """
+    скрипт = os.path.join(find_root(), "tools", "rasshifrovka.sh")
+    if not os.path.exists(скрипт):
+        return ""
+    try:
+        r = subprocess.run([скрипт, путь], timeout=300,
+                           capture_output=True, text=True)
+        if r.returncode:
+            print(f"расшифровать не вышло: {r.stderr.strip()[:120]}", flush=True)
+            return ""
+        return " ".join(r.stdout.split())
+    except Exception as e:
+        print(f"расшифровать не вышло: {e}", flush=True)
+        return ""
+
+
 def save_attachment(m: dict, tok: str) -> str:
     """Скачать вложение сообщения. Возвращает путь к файлу или пустую строку.
 
@@ -501,7 +524,14 @@ def main() -> None:
                 # что владелец прислал только текст.
                 text += "\n\n[вложение НЕ ПОЛУЧЕНО]"
             if saved:
-                text = (text + "\n\n" if text else "") + f"Вложение: `{saved}`"
+                пометка = f"Вложение: `{saved}`"
+                # Голосовое само по себе бесполезно: звук оркестратор не слышит.
+                # Распознаём сразу, пока сообщение свежее.
+                if m.get("voice") or m.get("video_note"):
+                    речь = rasshifrovat(saved)
+                    if речь:
+                        пометка = f"Голосовое, расшифровка: «{речь}»\n\n{пометка}"
+                text = (text + "\n\n" if text else "") + пометка
 
             quoted = quoted_ref(m, tid)
             if quoted:
