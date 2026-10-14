@@ -8,7 +8,7 @@
 
 ## Слышать голосовые
 
-    umeniya/rasshifrovka.sh файл.ogg
+    skills/rasshifrovka.sh файл.ogg
 
 Печатает текст. Нужны ffmpeg и whisper.cpp в `/opt/whisper.cpp`; модель
 выбирается по свободной памяти — small при 900 МБ и выше, иначе base.
@@ -27,9 +27,9 @@
 
 ## Рисовать картинки
 
-    umeniya/kartinka-gemini.py "промт" --kuda kadr.png
-    umeniya/kartinka-gemini.py "промт" --model pro --kuda kadr.png
-    umeniya/kartinka-gemini.py "промт" --iskhodnik osnova.png --kuda novoe.png
+    skills/kartinka-gemini.py "промт" --kuda kadr.png
+    skills/kartinka-gemini.py "промт" --model pro --kuda kadr.png
+    skills/kartinka-gemini.py "промт" --iskhodnik osnova.png --kuda novoe.png
 
 Ключ Gemini кладётся файлом правами 600 в `~/.config/claude-kit/gemini-key`,
 берётся на aistudio.google.com в проекте с включённой оплатой.
