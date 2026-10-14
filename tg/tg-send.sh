@@ -24,6 +24,9 @@ while true; do
     --file)  FILE="${2:-}"; shift 2; [ -f "$FILE" ] || { echo "файл не найден: ${FILE}" >&2; exit 1; } ;;
     --reply) REPLY_TO="${2:-}"; shift 2 ;;
     --copy)  COPY=1; shift ;;
+    # Другая группа: один оркестратор может вести несколько проектов.
+    # Номер должен быть в TG_CHAT_IDS, иначе приёмник ответ оттуда не услышит.
+    --chat)  TG_CHAT_ID="${2:-}"; shift 2 ;;
     *) break ;;
   esac
 done

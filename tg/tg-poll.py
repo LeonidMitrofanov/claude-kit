@@ -38,6 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # не заведя вокруг настоящий проект. И кит должен уметь лежать в репозитории
 # один, без единого проекта рядом, — а чтение настроек при импорте это ломает.
 CHAT_ID = None
+CHAT_IDS = set()   # все группы, которые слушаем: своя плюс TG_CHAT_IDS
 KEYCHAIN_SERVICE = None
 ROOT = None
 DIALOG_DIR = None
@@ -57,6 +58,20 @@ def configure() -> None:
         CHAT_ID = int(_chat_id)
     except ValueError:
         sys.exit(f"TG_CHAT_ID в project.conf не число: {_chat_id!r}")
+
+    # Дополнительные группы: TG_CHAT_IDS через запятую. Нужны, когда один
+    # оркестратор ведёт несколько проектов в разных группах. Пустой список —
+    # обычный случай: слушаем только свою.
+    global CHAT_IDS
+    CHAT_IDS = {CHAT_ID}
+    ещё = os.environ.get("TG_CHAT_IDS", "").strip()
+    for кусок in ещё.replace(" ", "").split(","):
+        if not кусок:
+            continue
+        try:
+            CHAT_IDS.add(int(кусок))
+        except ValueError:
+            sys.exit(f"TG_CHAT_IDS: {кусок!r} не число")
 
     # Корень проекта берётся у kitconf, а не считается как «два каталога вверх»:
     # кит подключается подмодулем и может лежать не в корне.
@@ -487,7 +502,7 @@ def main() -> None:
             offset = u["update_id"] + 1
             edited = "edited_message" in u
             m = u.get("message") or u.get("edited_message")
-            if not m or m.get("chat", {}).get("id") != CHAT_ID:
+            if not m or m.get("chat", {}).get("id") not in CHAT_IDS:
                 continue
 
             # Сообщения самого бота пропускаем. Иначе получается петля: закрепление
