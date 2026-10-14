@@ -317,12 +317,12 @@ def quoted_ref(m: dict, tid: int) -> str:
 def rasshifrovat(путь: str) -> str:
     """Перевести голосовое в текст своим распознаванием.
 
-    whisper.cpp стоит на сервере (tools/rasshifrovka.sh), работает без сети
+    whisper.cpp стоит на сервере (tools/transcribe.sh), работает без сети
     и без ключей. Не вышло — возвращаем пустую строку, и в переписку идёт одна
     ссылка на файл, как было раньше: потерять сообщение из-за распознавания
     хуже, чем остаться без расшифровки.
     """
-    скрипт = os.path.join(find_root(), "tools", "rasshifrovka.sh")
+    скрипт = os.path.join(find_root(), "tools", "transcribe.sh")
     if not os.path.exists(скрипт):
         return ""
     try:

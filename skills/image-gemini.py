@@ -15,9 +15,9 @@ Flash хватает для схем, плашек и фонов. Pro берут
 сложная сцена, люди, текст внутри картинки.
 
 Запуск:
-  kartinka-gemini.py "промт" --kuda kadr.png
-  kartinka-gemini.py "промт" --model pro --kuda kadr.png
-  kartinka-gemini.py "промт" --iskhodnik lico.png --kuda novoe.png
+  image-gemini.py "промт" --kuda kadr.png
+  image-gemini.py "промт" --model pro --kuda kadr.png
+  image-gemini.py "промт" --iskhodnik lico.png --kuda novoe.png
 """
 import argparse
 import base64

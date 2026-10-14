@@ -8,7 +8,7 @@
 # small (465 МБ) точнее, base (141 МБ) — запасной путь, когда памяти мало.
 #
 # Имена переменных латиницей: bash не принимает кириллицу в именах.
-# Запуск:  rasshifrovka.sh путь-к-файлу.ogg
+# Запуск:  transcribe.sh путь-к-файлу.ogg
 # Печатает распознанный текст в stdout. Молчит, если не вышло.
 
 set -euo pipefail
@@ -31,7 +31,7 @@ else
 fi
 
 fayl="${1:-}"
-[ -n "$fayl" ] || { echo "использование: rasshifrovka.sh файл.ogg" >&2; exit 1; }
+[ -n "$fayl" ] || { echo "использование: transcribe.sh файл.ogg" >&2; exit 1; }
 [ -f "$fayl" ] || { echo "нет файла: $fayl" >&2; exit 1; }
 
 if [ ! -x "$WHISPER" ] || [ ! -f "$MODEL" ]; then
