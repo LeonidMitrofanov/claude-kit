@@ -64,7 +64,11 @@ def configure() -> None:
     # обычный случай: слушаем только свою.
     global CHAT_IDS
     CHAT_IDS = {CHAT_ID}
-    ещё = os.environ.get("TG_CHAT_IDS", "").strip()
+    # Читаем из project.conf тем же загрузчиком, что и остальные настройки:
+    # через окружение не выйдет — project.conf это bash-файл, который питон
+    # не исполняет, а kitconf разбирает. На этом я и споткнулся 14.10.
+    from kitconf import load, conf_path
+    ещё = (load(conf_path()).get("TG_CHAT_IDS") or "").strip()
     for кусок in ещё.replace(" ", "").split(","):
         if not кусок:
             continue
@@ -235,7 +239,7 @@ def save_topics(topics: dict) -> None:
             f.write(f"| `{tid}` | {name} | [{slug}.md]({slug}.md) |\n")
 
 
-def seen(msg_id: int, tok: str) -> None:
+def seen(msg_id: int, tok: str, chat_id: int = None) -> None:
     """Пометить сообщение как полученное — реакцией 👀, сразу.
 
     Ставит именно приёмник, а не оркестратор: приёмник видит сообщение первым,
@@ -253,7 +257,9 @@ def seen(msg_id: int, tok: str) -> None:
     for attempt in range(1, 4):
         try:
             api("setMessageReaction", {
-                "chat_id": CHAT_ID,
+                # Чат берётся из сообщения: групп может быть несколько,
+                # и реакция должна лечь туда, откуда сообщение пришло.
+                "chat_id": chat_id if chat_id is not None else CHAT_ID,
                 "message_id": msg_id,
                 "reaction": json.dumps([{"type": "emoji", "emoji": "👀"}]),
             }, tok, timeout=15)
@@ -563,7 +569,7 @@ def main() -> None:
             slug = "general" if tid == 0 else f"topic-{tid}"
             msg_id = m.get("message_id", 0)
             if msg_id:
-                seen(msg_id, tok)
+                seen(msg_id, tok, m.get("chat", {}).get("id"))
             append(slug, who, text, when, msg_id)
             print(f"[{when}] {who} → {topics[tid]}: {text[:60]}", flush=True)
             wake(text, topics[tid], who, m.get("message_id", 0))
